@@ -202,10 +202,7 @@ export default class extends PureComponent {
 
     this.clear();
 
-    if (
-      width === this.props.canvasWidth &&
-      height === this.props.canvasHeight
-    ) {
+    if (width === this.props.canvasWidth && height === this.props.canvasHeight) {
       this.simulateDrawingLines({
         lines,
         immediate
@@ -241,16 +238,7 @@ export default class extends PureComponent {
 
       // Draw all at once if immediate flag is set, instead of using setTimeout
       if (immediate) {
-        // Draw the points
-        this.drawPoints({
-          points,
-          brushColor,
-          brushRadius
-        });
-
-        // Save line with the drawn points
-        this.points = points;
-        this.saveLine({ brushColor, brushRadius });
+        this.drawLine(line);
         return;
       }
 
@@ -273,6 +261,65 @@ export default class extends PureComponent {
         this.saveLine({ brushColor, brushRadius });
       }, curTime);
     });
+  };
+
+  drawLine = ({points, brushColor, brushRadius}) => {
+    if (points.length === 0) {
+      throw new Error("line has no points!");
+    }
+
+    // Draw the points
+    this.drawPoints({
+      points,
+      brushColor,
+      brushRadius
+    }, 'loading');
+
+    // Save line with the drawn points
+    this.points = points;
+    this.saveLine({brushColor, brushRadius}, 'loading');
+  };
+
+  updateCanvas = (saveData) => {
+    if (typeof saveData !== "string") {
+      throw new Error("saveData needs to be of type string!");
+    }
+
+    const {lines, width, height} = JSON.parse(saveData);
+
+    if (!lines || typeof lines.push !== "function") {
+      throw new Error("saveData.lines needs to be an array!");
+    }
+
+    const currentLine = this.points;
+
+    this.clear();
+
+    if (width === this.props.canvasWidth && height === this.props.canvasHeight) {
+      this.simulateDrawingLines({
+        lines,
+        immediate: true
+      });
+    } else {
+      // we need to rescale the lines based on saved & current dimensions
+      const scaleX = this.props.canvasWidth / width;
+      const scaleY = this.props.canvasHeight / height;
+      const scaleAvg = (scaleX + scaleY) / 2;
+
+      this.simulateDrawingLines({
+        lines: lines.map(line => ({
+          ...line,
+          points: line.points.map(p => ({
+            x: p.x * scaleX,
+            y: p.y * scaleY
+          })),
+          brushRadius: line.brushRadius * scaleAvg
+        })),
+        immediate: true
+      });
+    }
+
+    this.points = currentLine;
   };
 
   handleTouchStart = e => {
@@ -391,12 +438,7 @@ export default class extends PureComponent {
     this.ctx.temp.lineCap = "round";
     this.ctx.temp.strokeStyle = brushColor;
 
-    this.ctx.temp.clearRect(
-      0,
-      0,
-      this.ctx.temp.canvas.width,
-      this.ctx.temp.canvas.height
-    );
+    this.ctx.temp.clearRect(0, 0, this.ctx.temp.canvas.width, this.ctx.temp.canvas.height);
     this.ctx.temp.lineWidth = brushRadius * 2;
 
     let p1 = points[0];
@@ -452,18 +494,8 @@ export default class extends PureComponent {
   clear = () => {
     this.lines = [];
     this.valuesChanged = true;
-    this.ctx.drawing.clearRect(
-      0,
-      0,
-      this.canvas.drawing.width,
-      this.canvas.drawing.height
-    );
-    this.ctx.temp.clearRect(
-      0,
-      0,
-      this.canvas.temp.width,
-      this.canvas.temp.height
-    );
+    this.ctx.drawing.clearRect(0, 0, this.canvas.drawing.width, this.canvas.drawing.height);
+    this.ctx.temp.clearRect(0, 0, this.canvas.temp.width, this.canvas.temp.height);
   };
 
   loop = ({ once = false } = {}) => {
